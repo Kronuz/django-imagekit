@@ -18,7 +18,8 @@ class Resize(object):
         self.height = height
 
     def process(self, img):
-        return img.resize((self.width, self.height), Image.ANTIALIAS)
+        width, height = self.width, self.height
+        return img.resize((width, height), Image.ANTIALIAS)
 
 
 class ResizeToCover(object):
@@ -38,8 +39,9 @@ class ResizeToCover(object):
 
     def process(self, img):
         original_width, original_height = img.size
-        ratio = max(float(self.width) / original_width,
-                float(self.height) / original_height)
+        width, height = self.width, self.height
+        ratio = max(float(width) / original_width,
+                float(height) / original_height)
         new_width, new_height = (int(original_width * ratio),
                 int(original_height * ratio))
         return Resize(new_width, new_height).process(img)
@@ -64,8 +66,9 @@ class ResizeToFill(object):
 
     def process(self, img):
         from .crop import Crop
-        img = ResizeToCover(self.width, self.height).process(img)
-        return Crop(self.width, self.height,
+        width, height = self.width, self.height
+        img = ResizeToCover(width, height).process(img)
+        return Crop(width, height,
                 anchor=self.anchor).process(img)
 
 
@@ -86,8 +89,9 @@ class SmartResize(object):
 
     def process(self, img):
         from .crop import SmartCrop
-        img = ResizeToCover(self.width, self.height).process(img)
-        return SmartCrop(self.width, self.height).process(img)
+        width, height = self.width, self.height
+        img = ResizeToCover(width, height).process(img)
+        return SmartCrop(width, height).process(img)
 
 
 class ResizeCanvas(object):
@@ -137,17 +141,18 @@ class ResizeCanvas(object):
 
     def process(self, img):
         original_width, original_height = img.size
+        width, height = self.width, self.height
 
         if self.anchor:
             anchor = Anchor.get_tuple(self.anchor)
-            trim_x, trim_y = self.width - original_width, \
-                    self.height - original_height
+            trim_x, trim_y = width - original_width, \
+                    height - original_height
             x = int(float(trim_x) * float(anchor[0]))
             y = int(float(trim_y) * float(anchor[1]))
         else:
             x, y = self.x, self.y
 
-        new_img = Image.new('RGBA', (self.width, self.height), self.color)
+        new_img = Image.new('RGBA', (width, height), self.color)
         new_img.paste(img, (x, y))
         return new_img
 
@@ -201,14 +206,15 @@ class ResizeToFit(object):
 
     def process(self, img):
         cur_width, cur_height = img.size
-        if not self.width is None and not self.height is None:
-            ratio = min(float(self.width) / cur_width,
-                    float(self.height) / cur_height)
+        width, height = self.width, self.height
+        if not width is None and not height is None:
+            ratio = min(float(width) / cur_width,
+                    float(height) / cur_height)
         else:
-            if self.width is None:
-                ratio = float(self.height) / cur_height
+            if width is None:
+                ratio = float(height) / cur_height
             else:
-                ratio = float(self.width) / cur_width
+                ratio = float(width) / cur_width
         new_dimensions = (int(round(cur_width * ratio)),
                           int(round(cur_height * ratio)))
         if (cur_width > new_dimensions[0] or cur_height > new_dimensions[1]) or \
@@ -216,5 +222,5 @@ class ResizeToFit(object):
                 img = Resize(new_dimensions[0],
                         new_dimensions[1]).process(img)
         if self.mat_color:
-            img = ResizeCanvas(self.width, self.height, self.mat_color, anchor=self.anchor).process(img)
+            img = ResizeCanvas(width, height, self.mat_color, anchor=self.anchor).process(img)
         return img
