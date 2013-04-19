@@ -56,8 +56,10 @@ class ImageSpecFieldFile(ImageFieldFile):
         the content of the result, ready for saving.
 
         """
-        return self.field.generator.generate_file(self.name, self.source_file,
+        content = self.field.generator.generate_file(self.name, self.source_file,
                 save)
+        self.field.update_dimension_fields(self.instance, True)
+        return content
 
     def delete(self, save=False):
         """

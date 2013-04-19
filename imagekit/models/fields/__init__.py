@@ -10,15 +10,18 @@ from .utils import ImageSpecFileDescriptor, ImageKitMeta, BoundImageKitMeta
 from ...utils import suggest_extension
 
 
-class ImageSpecField(object):
+class ImageSpecField(models.ImageField):
     """
     The heart and soul of the ImageKit library, ImageSpecField allows you to add
     variants of uploaded images to your models.
 
     """
-    def __init__(self, processors=None, format=None, options=None,
-        image_field=None, pre_cache=None, storage=None, cache_to=None,
-        autoconvert=True, image_cache_backend=None):
+    attr_class = ImageSpecFieldFile
+
+    def __init__(self, verbose_name=None, name=None, width_field=None,
+            height_field=None, processors=None, format=None, options=None,
+            image_field=None, pre_cache=None, storage=None, cache_to=None,
+            autoconvert=True, image_cache_backend=None, **kwargs):
         """
         :param processors: A list of processors to run on the original image.
         :param format: The format of the output file. If not provided,
@@ -55,6 +58,7 @@ class ImageSpecField(object):
             IMAGEKIT_DEFAULT_IMAGE_CACHE_BACKEND
 
         """
+        super(ImageSpecField, self).__init__(verbose_name, name, width_field, height_field, **kwargs)
 
         if pre_cache is not None:
             raise Exception('The pre_cache argument has been removed in favor'
@@ -76,7 +80,12 @@ class ImageSpecField(object):
                 get_default_image_cache_backend()
 
     def contribute_to_class(self, cls, name):
-        setattr(cls, name, ImageSpecFileDescriptor(self, name))
+        self.set_attributes_from_name(name)
+
+        self.model = cls
+
+        setattr(cls, self.name, self.descriptor_class(self))
+
         try:
             # Make sure we don't modify an inherited ImageKitMeta instance
             ik = cls.__dict__['ik']
@@ -91,14 +100,9 @@ class ImageSpecField(object):
             setattr(cls, '_ik', ik)
         ik.spec_fields.append(name)
 
-        # Connect to the signals only once for this class.
-        uid = '%s.%s' % (cls.__module__, cls.__name__)
-        post_init.connect(ImageSpecField._post_init_receiver, sender=cls,
-                dispatch_uid=uid)
-        post_save.connect(ImageSpecField._post_save_receiver, sender=cls,
-                dispatch_uid=uid)
-        post_delete.connect(ImageSpecField._post_delete_receiver, sender=cls,
-                dispatch_uid=uid)
+        post_init.connect(self.post_init_receiver, sender=cls)
+        post_save.connect(self.post_save_receiver, sender=cls)
+        post_delete.connect(self.post_delete_receiver, sender=cls)
 
         # Register the field with the image_cache_backend
         try:
@@ -106,35 +110,19 @@ class ImageSpecField(object):
         except AttributeError:
             pass
 
-    @staticmethod
-    def _post_save_receiver(sender, instance=None, created=False, raw=False, **kwargs):
+    def post_init_receiver(self, instance, **kwargs):
+        instance.__dict__[self.name] = None
+        instance._ik.source_hashes[self.name] = hash(getattr(instance, self.name).source_file)
+
+    def post_save_receiver(self, instance, created=False, raw=False, **kwargs):
         if not raw:
-            old_hashes = instance._ik._source_hashes.copy()
-            new_hashes = ImageSpecField._update_source_hashes(instance)
-            for attname in instance._ik.spec_fields:
-                if old_hashes[attname] != new_hashes[attname]:
-                    getattr(instance, attname).invalidate()
+            old_hash = instance._ik.source_hashes[self.name]
+            new_hash = hash(getattr(instance, self.name).source_file)
+            if old_hash != new_hash:
+                getattr(instance, self.name).invalidate()
 
-    @staticmethod
-    def _update_source_hashes(instance):
-        """
-        Stores hashes of the source image files so that they can be compared
-        later to see whether the source image has changed (and therefore whether
-        the spec file needs to be regenerated).
-
-        """
-        instance._ik._source_hashes = dict((f.attname, hash(f.source_file)) \
-                for f in instance._ik.spec_files)
-        return instance._ik._source_hashes
-
-    @staticmethod
-    def _post_delete_receiver(sender, instance=None, **kwargs):
-        for spec_file in instance._ik.spec_files:
-            spec_file.clear()
-
-    @staticmethod
-    def _post_init_receiver(sender, instance, **kwargs):
-        ImageSpecField._update_source_hashes(instance)
+    def post_delete_receiver(self, instance, **kwargs):
+        getattr(instance, self.name).clear()
 
 
 class ProcessedImageField(models.ImageField):
@@ -161,8 +149,8 @@ class ProcessedImageField(models.ImageField):
             raise Exception('The "quality" keyword argument has been'
                     """ deprecated. Use `options={'quality': %s}` instead.""" \
                     % kwargs['quality'])
-        models.ImageField.__init__(self, verbose_name, name, width_field,
-                height_field, **kwargs)
+        super(ProcessedImageField, NodeImageField).__init__(self, verbose_name,
+            name, width_field, height_field, **kwargs)
         self.generator = SpecFileGenerator(processors, format=format,
                 options=options, autoconvert=autoconvert)
 
@@ -179,4 +167,4 @@ try:
 except ImportError:
     pass
 else:
-    add_introspection_rules([], [r'^imagekit\.models\.fields\.ProcessedImageField$'])
+    add_introspection_rules([], [r'^imagekit\.models\.fields'])
