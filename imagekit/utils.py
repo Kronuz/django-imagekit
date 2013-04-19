@@ -246,6 +246,8 @@ def save_image(img, outfile, format, options=None, autoconvert=True):
         pass
 
     try:
+        if format.upper() not in Image.SAVE:
+            format = 'JPEG'  # default to jpeg
         with quiet():
             img.save(outfile, format, **options)
     except IOError:
