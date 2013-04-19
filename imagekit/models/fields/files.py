@@ -84,9 +84,10 @@ class ImageSpecFieldFile(ImageFieldFile):
             self.close()
             del self.file
 
-        if self.name and self.storage.exists(self.name):
+        name = self.name
+        if name and self.storage.exists(name):
             try:
-                self.storage.delete(self.name)
+                self.storage.delete(name)
             except NotImplementedError:
                 pass
 
