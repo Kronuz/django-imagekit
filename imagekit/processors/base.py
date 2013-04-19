@@ -1,4 +1,10 @@
-from imagekit.lib import Image, ImageColor, ImageEnhance
+from imagekit.lib import Image, ImageColor, ImageEnhance, ImageFilter
+
+
+# Monkey-patch GaussianBlur to fix radius parameter
+def _ImageFilter_GaussianBlur___init__(self, radius=2):
+    self.radius = radius
+ImageFilter.GaussianBlur.__init__ = _ImageFilter_GaussianBlur___init__
 
 
 class ProcessorPipeline(list):
@@ -13,6 +19,15 @@ class ProcessorPipeline(list):
     def process(self, img):
         for proc in self:
             img = proc.process(img)
+        return img
+
+
+class GaussianBlur(object):
+    def __init__(self, radius=2):
+        self.radius = radius
+
+    def process(self, img, frames=None):
+        img = img.filter(ImageFilter.GaussianBlur(self.radius))
         return img
 
 
